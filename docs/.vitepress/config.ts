@@ -10,6 +10,21 @@ export default defineConfig({
   cleanUrls: true,
   appearance: true,
 
+  // 当前文档站版本：随反馈提交，作为“页面版”声明与受影响版本默认值
+  vite: {
+    define: {
+      __DOCS_VERSION__: JSON.stringify('1.2.0')
+    },
+    server: {
+      proxy: {
+        '/api': {
+          target: process.env.FEEDBACK_API || 'http://localhost:8790',
+          changeOrigin: true
+        }
+      }
+    }
+  },
+
   markdown: {
     config: (md) => {
       md.use(mdContainer, 'demo', {
@@ -64,7 +79,9 @@ export default defineConfig({
       themeConfig: {
         nav: [
           { text: '指南', link: '/guide/installation', activeMatch: '/guide/' },
-          { text: '组件', link: '/components/button', activeMatch: '/components/' }
+          { text: '组件', link: '/components/button', activeMatch: '/components/' },
+          { text: '修订摘要', link: '/feedback/changelog' },
+          { text: '我的反馈', link: '/feedback/' }
         ],
         sidebar: {
           '/guide/': [
@@ -98,7 +115,8 @@ export default defineConfig({
       themeConfig: {
         nav: [
           { text: 'Guide', link: '/en/guide/installation', activeMatch: '/en/guide/' },
-          { text: 'Components', link: '/en/components/button', activeMatch: '/en/components/' }
+          { text: 'Components', link: '/en/components/button', activeMatch: '/en/components/' },
+          { text: 'Feedback', link: '/feedback/' }
         ],
         sidebar: {
           '/en/guide/': [

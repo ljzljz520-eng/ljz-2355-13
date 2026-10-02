@@ -55,3 +55,12 @@ npm run docs:preview
 examples/button/basic.vue
 :::
 ```
+
+## 🎫 反馈工单系统
+
+文档站内置“示例失败 / 内容疑问”反馈工单能力：右下角浮动入口提交、进度查询、公开修订摘要（导航“修订摘要”）。
+
+- **后端**：`server/`（Node http + SQLite，事件溯源），启动 `npm run feedback:dev`
+- **前端**：`docs/.vitepress/theme/feedback/`（提交挂件、离线幂等队列、分片续传）
+- **设计与 API**：见 [`docs/feedback/SYSTEM_DESIGN.md`](docs/feedback/SYSTEM_DESIGN.md) 与 [`server/API.md`](server/API.md)
+- **验收测试**：`npm test`（node:test，覆盖幂等回执、双人合并、逐版本复开、迁移确认、删段、上传中断、权限与公开摘要）
