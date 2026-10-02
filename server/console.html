@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>文档反馈工单 · 维护者控制台</title>
+<style>
+  :root { --primary:#409eff; --border:#dcdfe6; --bg:#f5f7fa; --ok:#67c23a; --warn:#e6a23c; --danger:#f56c6c; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.6 -apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif; color:#303133; background:var(--bg); }
+  header { background:#fff; border-bottom:1px solid var(--border); padding:12px 20px; display:flex; align-items:center; gap:16px; position:sticky; top:0; z-index:10; }
+  header h1 { font-size:16px; margin:0; }
+  main { display:grid; grid-template-columns: 380px 1fr; gap:16px; padding:16px 20px; }
+  .panel { background:#fff; border:1px solid var(--border); border-radius:8px; padding:14px; }
+  .panel h2 { font-size:14px; margin:0 0 10px; }
+  input,select,textarea,button { font:inherit; padding:6px 10px; border:1px solid var(--border); border-radius:4px; background:#fff; }
+  button { cursor:pointer; background:var(--primary); color:#fff; border-color:var(--primary); }
+  button.ghost { background:#fff; color:#606266; }
+  button.danger { background:var(--danger); border-color:var(--danger); }
+  button.small { padding:3px 8px; font-size:12px; }
+  .row { display:flex; gap:6px; flex-wrap:wrap; margin:6px 0; align-items:center; }
+  .muted { color:#909399; font-size:12px; }
+  .tag { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; background:#ecf5ff; color:var(--primary); }
+  .tag.open { background:#fdf6ec; color:var(--warn); }
+  .tag.resolved { background:#f0f9eb; color:var(--ok); }
+  .tag.fix_submitted { background:#ecf5ff; color:var(--primary); }
+  .tag.merged { background:#f4f4f5; color:#909399; }
+  .tag.wont_fix,.tag.invalid { background:#fef0f0; color:var(--danger); }
+  .ticket-item { border:1px solid var(--border); border-radius:6px; padding:8px 10px; margin:8px 0; cursor:pointer; }
+  .ticket-item.active { border-color:var(--primary); box-shadow:0 0 0 2px rgba(64,158,255,.15); }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th,td { border-bottom:1px solid #ebeef5; padding:6px 8px; text-align:left; vertical-align:top; }
+  .events { font-size:12px; color:#606266; max-height:260px; overflow:auto; background:#fafafa; border-radius:6px; padding:8px; }
+  .events .ev { padding:3px 0; border-bottom:1px dashed #ebeef5; }
+  .pill { font-size:11px; padding:0 6px; border-radius:8px; background:#f4f4f5; color:#909399; margin-left:4px; }
+  .pill.live { background:#f0f9eb; color:var(--ok); }
+  .tabs { display:flex; gap:4px; margin-bottom:10px; }
+  .tabs button { background:#fff; color:#606266; border-color:var(--border); }
+  .tabs button.active { background:var(--primary); color:#fff; }
+  #login { max-width:420px; margin:80px auto; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  label { font-size:12px; color:#606266; display:block; margin-top:6px; }
+  .ok-msg { color:var(--ok); } .err-msg { color:var(--danger); }
+  code { background:#f4f4f5; padding:1px 5px; border-radius:3px; font-size:12px; }
+</style>
+</head>
+<body>
+
+<div id="login" class="panel" style="display:none">
+  <h2>维护者登录</h2>
+  <p class="muted">账号经 HTTP Basic 认证；公开访客不使用此入口。</p>
+  <label>用户名</label><input id="li-user" value="mona" style="width:100%">
+  <label>密码</label><input id="li-pass" type="password" value="mona-pass-123" style="width:100%">
+  <div class="row" style="margin-top:10px"><button onclick="doLogin()">登录</button>
+    <span id="li-msg" class="err-msg"></span></div>
+  <p class="muted">种子账号：admin/admin-123456 · mona/mona-pass-123 · rafa/rafa-pass-123</p>
+</div>
+
+<div id="app" style="display:none">
+<header>
+  <h1>📝 文档反馈工单控制台</h1>
+  <span class="muted" id="whoami"></span>
+  <span style="flex:1"></span>
+  <button class="ghost small" onclick="logout()">退出</button>
+</header>
+<main>
+  <section class="panel">
+    <h2>工单列表</h2>
+    <div class="row">
+      <button class="ghost small" onclick="loadTickets()">刷新</button>
+      <span id="count" class="muted"></span>
+    </div>
+    <div id="ticket-list"></div>
+  </section>
+
+  <section class="panel">
+    <div class="tabs">
+      <button data-tab="detail" class="active" onclick="switchTab('detail')">工单处理</button>
+      <button data-tab="migrations" onclick="switchTab('migrations')">页面迁移</button>
+      <button data-tab="releases" onclick="switchTab('releases')">发布与摘要</button>
+    </div>
+
+    <div id="tab-detail">
+      <div id="detail-empty" class="muted">请选择左侧工单。</div>
+      <div id="detail" style="display:none">
+        <h2 id="d-title"></h2>
+        <div class="row">
+          <span id="d-id" class="muted"></span>
+          <span id="d-status" class="tag"></span>
+          <span id="d-cat" class="tag"></span>
+        </div>
+        <p id="d-body"></p>
+        <div class="muted" id="d-loc"></div>
+        <div class="muted" id="d-env"></div>
+        <div class="muted" id="d-contact"></div>
+        <div class="muted" id="d-merges"></div>
+
+        <h2 style="margin-top:14px">受影响版本（逐版本跟踪，不能简单合成一条已解决）</h2>
+        <table>
+          <thead><tr><th>文档版</th><th>状态</th><th>修复版</th><th>验证版</th><th>上线</th><th>操作</th></tr></thead>
+          <tbody id="d-versions"></tbody>
+        </table>
+        <div class="row">
+          <input id="add-ver" placeholder="追加受影响版，如 2026.09.0" style="width:200px">
+          <button class="small ghost" onclick="addAffected()">追加版本</button>
+        </div>
+
+        <h2 style="margin-top:14px">处理动作（均落事件、可幂等重试）</h2>
+        <div class="grid2">
+          <div class="panel" style="background:#fafafa">
+            <strong>依据修复证据</strong>
+            <label>针对版本</label><input id="fx-ver" placeholder="docVersion">
+            <label>修复新版本</label><input id="fx-fix" placeholder="fixVersion">
+            <label>证据（链接/说明）</label><input id="fx-ev" placeholder="evidence">
+            <div class="row"><button class="small" onclick="submitFix()">登记修复</button></div>
+            <hr style="border:none;border-top:1px dashed var(--border)">
+            <label>验证针对版本</label><input id="vf-ver" placeholder="docVersion">
+            <label>在哪个新版本验证有效（必须已发布）</label><input id="vf-ver2" placeholder="verifiedVersion">
+            <div class="row"><button class="small" onclick="verifyFix()">标记验证有效</button></div>
+          </div>
+          <div class="panel" style="background:#fafafa">
+            <strong>直接处理</strong>
+            <label>直接改状态（需原因，证据链保留）</label>
+            <select id="ms-status">
+              <option value="open">open</option>
+              <option value="fix_submitted">fix_submitted</option>
+              <option value="resolved">resolved</option>
+              <option value="wont_fix">wont_fix</option>
+              <option value="invalid">invalid</option>
+            </select>
+            <label>原因</label><input id="ms-reason" placeholder="reason（必填）">
+            <div class="row"><button class="small ghost" onclick="manualStatus()">直接改状态</button></div>
+            <hr style="border:none;border-top:1px dashed var(--border)">
+            <label>复开版本（旧版仍有问题）</label><input id="ro-ver" placeholder="docVersion">
+            <label>原因</label><input id="ro-reason" placeholder="reason">
+            <div class="row"><button class="small danger" onclick="reopen()">复开</button></div>
+            <hr style="border:none;border-top:1px dashed var(--border)">
+            <label>合并到目标工单（来源不丢失）</label><input id="mg-target" placeholder="TKT-000002">
+            <label>原因</label><input id="mg-reason" placeholder="reason">
+            <div class="row"><button class="small ghost" onclick="doMerge()">合并工单</button></div>
+          </div>
+        </div>
+
+        <h2 style="margin-top:14px">评论</h2>
+        <div class="row"><input id="cm-text" placeholder="内部评论" style="flex:1"><button class="small ghost" onclick="addComment()">添加</button></div>
+
+        <h2 style="margin-top:14px">事件流（不可变）</h2>
+        <div class="events" id="d-events"></div>
+        <p id="d-msg" class="muted"></p>
+      </div>
+    </div>
+
+    <div id="tab-migrations" style="display:none">
+      <h2>待人工确认的页面迁移</h2>
+      <p class="muted">页面迁移后旧反馈保留原定位；只有人工确认后才建立到新位置的关系，并给旧工单追加事件。</p>
+      <table>
+        <thead><tr><th>#</th><th>旧定位</th><th>新定位</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody id="mg-rows"></tbody>
+      </table>
+      <h2 style="margin-top:16px">登记迁移 / 删段</h2>
+      <div class="grid2">
+        <div class="panel" style="background:#fafafa">
+          <strong>迁移提案</strong>
+          <div class="grid2">
+            <div><label>旧 version</label><input id="m-sv"></div><div><label>旧 path</label><input id="m-sp" placeholder="/components/button"></div>
+            <div><label>旧 anchor</label><input id="m-sa"></div><div><label>新 version</label><input id="m-tv"></div>
+            <div><label>新 path</label><input id="m-tp"></div><div><label>新 anchor</label><input id="m-ta"></div>
+          </div>
+          <div class="row"><button class="small" onclick="proposeMigration()">登记迁移</button></div>
+        </div>
+        <div class="panel" style="background:#fafafa">
+          <strong>文档删段（锚点失效，不关工单）</strong>
+          <div class="grid2">
+            <div><label>version</label><input id="dlt-v"></div><div><label>path</label><input id="dlt-p"></div>
+            <div><label>anchor</label><input id="dlt-a"></div>
+          </div>
+          <div class="row"><button class="small danger" onclick="deleteSection()">标记删段</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-releases" style="display:none">
+      <h2>已发布版本</h2>
+      <div class="row"><input id="rel-ver" placeholder="版本，如 2026.10.1">
+        <input id="rel-notes" placeholder="发布说明" style="flex:1">
+        <button class="small" onclick="addRelease()">登记发布</button></div>
+      <table><thead><tr><th>版本</th><th>发布时间</th><th>说明</th></tr></thead><tbody id="rel-rows"></tbody></table>
+
+      <h2 style="margin-top:16px">公开修订摘要（只取已核实事实）</h2>
+      <p class="muted">草稿不公开；只有 修复版已发布 + 该版已验证 才能建条目，发布后才出现在公开接口。未发布修复绝不会显示为已上线。</p>
+      <div class="row">
+        <input id="rs-ticket" placeholder="TKT-000001" style="width:130px">
+        <input id="rs-docver" placeholder="受影响 docVersion" style="width:160px">
+        <input id="rs-fixver" placeholder="fixedVersion（须=验证版且已发布）" style="width:220px">
+        <input id="rs-text" placeholder="摘要文本" style="flex:1">
+        <button class="small" onclick="createSummary()">建草稿</button>
+      </div>
+      <p id="rs-msg" class="muted"></p>
+    </div>
+  </section>
+</main>
+</div>
+
+<script>
+let auth = null, tickets = [], current = null, idemSeq = 0;
+const $ = (id) => document.getElementById(id);
+const idem = () => (crypto.randomUUID ? crypto.randomUUID() : 'idem-' + Date.now() + '-' + (idemSeq++));
+
+function show(el) { ['login','app'].forEach(x => $(x).style.display = x === el ? 'block' : 'none'); }
+function doLogin() {
+  const u = $('li-user').value.trim(), p = $('li-pass').value;
+  auth = 'Basic ' + btoa(u + ':' + p);
+  api('/api/maintainer/tickets').then(() => {
+    $('whoami').textContent = '当前维护者：' + u; show('app'); loadTickets(); loadMigrations(); loadReleases();
+  }).catch(e => { $('li-msg').textContent = '登录失败：' + e.message; });
+}
+function logout() { auth = null; show('login'); }
+
+async function api(url, opts = {}) {
+  const headers = Object.assign({}, opts.headers || {});
+  if (auth) headers.Authorization = auth;
+  if (opts.body) { headers['Content-Type'] = 'application/json'; opts.body.idempotencyKey = opts.body.idempotencyKey || idem(); }
+  const res = await fetch(url, Object.assign({}, opts, { headers }));
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.error || res.statusText), { data });
+  return data;
+}
+
+async function loadTickets() {
+  const r = await api('/api/maintainer/tickets');
+  tickets = r.tickets;
+  $('count').textContent = tickets.length + ' 条';
+  $('ticket-list').innerHTML = tickets.map(t => `
+    <div class="ticket-item ${current===t.id?'active':''}" onclick="selectTicket('${t.id}')">
+      <div><span class="tag ${t.status}">${t.status}</span> <strong>${esc(t.title)}</strong></div>
+      <div class="muted">${t.id} · ${t.page.version} · ${t.page.path}${t.page.anchor||''}</div>
+      <div class="muted">${t.affectedVersions.map(v => v.docVersion+':'+v.status).join(' · ')}</div>
+    </div>`).join('');
+  if (current) renderDetail(tickets.find(t => t.id === current));
+}
+
+function esc(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function selectTicket(id) {
+  current = id;
+  const t = await api('/api/maintainer/tickets/' + id);
+  renderDetail(t); loadTickets();
+}
+
+function renderDetail(t) {
+  if (!t) return;
+  $('detail-empty').style.display='none'; $('detail').style.display='block';
+  $('d-title').textContent = t.title;
+  $('d-id').textContent = t.id + ' · ' + new Date(t.createdAt).toLocaleString();
+  const st = $('d-status'); st.textContent = t.status; st.className = 'tag ' + t.status;
+  $('d-cat').textContent = t.category;
+  $('d-body').textContent = t.body;
+  $('d-loc').innerHTML = '📍 原始定位（不可改写）：<code>' + t.page.version + ' · ' + esc(t.page.path) + (t.page.anchor||'') +
+    '</code>' + (t.page.headingSnapshot ? ' · 标题快照「' + esc(t.page.headingSnapshot) + '」' : '');
+  $('d-env').textContent = '环境声明：' + JSON.stringify(t.environment);
+  $('d-contact').textContent = '提交者联系方式（仅维护者可见）：' + (t.contact || '未提供') +
+    ' · 附件：' + t.attachments.map(a => a.filename + '[' + a.visibility + ']').join(', ');
+  $('d-merges').innerHTML = (t.merges.sources.length ? '合并来源：' + t.merges.sources.map(m=>m.ticketId+'('+m.mergedBy+')').join(', ') : '') +
+    (t.merges.targets.length ? ' · 已并入：' + t.merges.targets.map(m=>m.ticketId).join(', ') : '');
+  $('d-versions').innerHTML = t.affectedVersions.map(v => `
+    <tr><td>${v.docVersion}</td><td><span class="tag ${v.status==='resolved'?'resolved':'open'}">${v.status}</span></td>
+    <td>${v.fixVersion||'—'}</td><td>${v.verifiedVersion||'—'}</td>
+    <td>${v.live ? '<span class="pill live">已上线</span>' : '<span class="pill">未上线</span>'}</td>
+    <td class="muted">修复须逐版验证</td></tr>`).join('');
+  $('d-events').innerHTML = t.events.map(e =>
+    `<div class="ev"><span class="tag ${e.to==='resolved'?'resolved':''}" style="font-size:11px">${e.type}</span>
+     <b>${esc(e.actor)}</b> ${e.docVersion ? '['+e.docVersion+']' : ''}
+     ${e.from ? esc(e.from)+' → ' : ''}${e.to ? esc(e.to) : ''}
+     ${e.payload ? esc(JSON.stringify(e.payload)) : ''} <span class="muted">${new Date(e.at).toLocaleString()}</span></div>`
+  ).join('');
+}
+
+function msg(el, text, ok) { $(el).textContent = text; $(el).className = ok ? 'ok-msg' : 'err-msg'; }
+async function refresh(t) { await loadTickets(); if (t) await selectTicket(t); }
+
+async function addAffected() {
+  await api(`/api/maintainer/tickets/${current}/affected`, { method:'POST', body:{ docVersion: $('add-ver').value }});
+  await refresh(current);
+}
+async function submitFix() {
+  await api(`/api/maintainer/tickets/${current}/fix`, { method:'POST', body:{
+    docVersion: $('fx-ver').value, fixVersion: $('fx-fix').value, evidence: $('fx-ev').value }});
+  await refresh(current);
+}
+async function verifyFix() {
+  try {
+    await api(`/api/maintainer/tickets/${current}/verify`, { method:'POST', body:{
+      docVersion: $('vf-ver').value, verifiedVersion: $('vf-ver2').value }});
+    msg('d-msg','已在新版本验证有效',true);
+  } catch(e){ msg('d-msg','验证失败：' + (e.data?.error||e.message), false); }
+  await refresh(current);
+}
+async function reopen() {
+  await api(`/api/maintainer/tickets/${current}/reopen`, { method:'POST', body:{
+    docVersion: $('ro-ver').value, reason: $('ro-reason').value }});
+  await refresh(current);
+}
+async function manualStatus() {
+  try {
+    await api(`/api/maintainer/tickets/${current}/status`, { method:'POST', body:{
+      status: $('ms-status').value, reason: $('ms-reason').value }});
+  } catch(e){ alert(e.data?.error || e.message); }
+  await refresh(current);
+}
+async function doMerge() {
+  await api('/api/maintainer/merge', { method:'POST', body:{
+    sourceId: current, targetId: $('mg-target').value.trim(), reason: $('mg-reason').value }});
+  await refresh(current);
+}
+async function addComment() {
+  await api(`/api/maintainer/tickets/${current}/comments`, { method:'POST', body:{ text: $('cm-text').value }});
+  $('cm-text').value=''; await refresh(current);
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  ['detail','migrations','releases'].forEach(x => $('tab-'+x).style.display = x === name ? 'block' : 'none');
+}
+async function loadMigrations() {
+  const r = await api('/api/maintainer/migrations');
+  $('mg-rows').innerHTML = r.migrations.map(m => `<tr>
+    <td>${m.id}</td>
+    <td>${m.source_version} ${m.source_path}${m.source_anchor||''}</td>
+    <td>${m.target_version} ${m.target_path}${m.target_anchor||''}</td>
+    <td>${m.status}</td>
+    <td><button class="small" onclick="confirmMig(${m.id})">人工确认</button>
+        <button class="small ghost" onclick="rejectMig(${m.id})">拒绝</button></td></tr>`).join('')
+    || '<tr><td colspan="4" class="muted">无待确认迁移</td></tr>';
+}
+async function confirmMig(id) { await api(`/api/maintainer/migrations/${id}/confirm`,{method:'POST',body:{}}); await loadMigrations(); await loadTickets(); }
+async function rejectMig(id) { await api(`/api/maintainer/migrations/${id}/reject`,{method:'POST',body:{}}); await loadMigrations(); }
+async function proposeMigration() {
+  await api('/api/maintainer/migrations', { method:'POST', body:{
+    sourceVersion:$('m-sv').value, sourcePath:$('m-sp').value, sourceAnchor:$('m-sa').value || null,
+    targetVersion:$('m-tv').value, targetPath:$('m-tp').value, targetAnchor:$('m-ta').value || null }});
+  await loadMigrations();
+}
+async function deleteSection() {
+  await api('/api/maintainer/sections/deleted', { method:'POST', body:{
+    pageVersion:$('dlt-v').value, pagePath:$('dlt-p').value, pageAnchor:$('dlt-a').value || null }});
+  await loadTickets();
+}
+async function loadReleases() {
+  const r = await fetch('/api/public/releases').then(x=>x.json());
+  $('rel-rows').innerHTML = r.releases.map(x =>
+    `<tr><td>${x.version}</td><td>${new Date(x.released_at).toLocaleString()}</td><td>${esc(x.notes||'')}</td></tr>`).join('');
+}
+async function addRelease() {
+  await api('/api/maintainer/releases', { method:'POST', body:{ version:$('rel-ver').value, notes:$('rel-notes').value }});
+  await loadReleases();
+}
+async function createSummary() {
+  try {
+    const r = await api('/api/maintainer/revision-summaries', { method:'POST', body:{
+      ticketId:$('rs-ticket').value.trim(), docVersion:$('rs-docver').value,
+      fixedVersion:$('rs-fixver').value, summary:$('rs-text').value }});
+    if (confirm('草稿已创建（#'+r.id+'），立即发布到公开修订摘要？')) {
+      await api(`/api/maintainer/revision-summaries/${r.id}/publish`,{method:'POST',body:{}});
+    }
+    msg('rs-msg','完成',true);
+  } catch(e){ msg('rs-msg','无法建摘要：' + (e.data?.error||e.message), false); }
+}
+
+show('login');
+</script>
+</body>
+</html>

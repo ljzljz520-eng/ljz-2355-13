@@ -3,12 +3,31 @@ import mdContainer from 'markdown-it-container'
 import fs from 'fs'
 import path from 'path'
 
+// 页面版：每次构建携带一个版本号，反馈接口据此区分同一问题是否跨多版本出现
+const DOC_VERSION = process.env.DOC_VERSION || `dev-${new Date().toISOString().slice(0, 10)}`
+
 export default defineConfig({
   title: 'My Component Lib',
   description: 'A UI Component Library based on Vue 3',
   lastUpdated: true,
   cleanUrls: true,
   appearance: true,
+
+  vite: {
+    define: {
+      __DOC_VERSION__: JSON.stringify(DOC_VERSION)
+    },
+    server: {
+      // 本地开发：把 /feedback-api 代理到工单服务（node server）
+      proxy: {
+        '/feedback-api': {
+          target: process.env.FEEDBACK_TARGET || 'http://localhost:8788',
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/feedback-api/, '/api')
+        }
+      }
+    }
+  },
 
   markdown: {
     config: (md) => {
@@ -20,7 +39,7 @@ export default defineConfig({
           if (tokens[idx].nesting === 1) {
             const m = tokens[idx].info.trim().match(/^demo\s*(.*)$/)
             const description = m && m.length > 1 ? m[1] : ''
-            
+
             let i = idx + 1
             let sourceFile = ''
             while (tokens[i] && tokens[i].nesting !== -1) {
@@ -64,7 +83,8 @@ export default defineConfig({
       themeConfig: {
         nav: [
           { text: '指南', link: '/guide/installation', activeMatch: '/guide/' },
-          { text: '组件', link: '/components/button', activeMatch: '/components/' }
+          { text: '组件', link: '/components/button', activeMatch: '/components/' },
+          { text: '反馈说明', link: '/feedback/overview', activeMatch: '/feedback/' }
         ],
         sidebar: {
           '/guide/': [
@@ -81,6 +101,14 @@ export default defineConfig({
               text: '基础组件',
               items: [
                 { text: 'Button 按钮', link: '/components/button' }
+              ]
+            }
+          ],
+          '/feedback/': [
+            {
+              text: '反馈工单',
+              items: [
+                { text: '反馈功能说明', link: '/feedback/overview' }
               ]
             }
           ]

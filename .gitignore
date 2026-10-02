@@ -23,3 +23,10 @@ __pycache__/
 *.log
 .env
 .env.*
+
+# feedback ticket service runtime data
+server/data/
+server/uploads/
+*.db
+*.db-wal
+*.db-shm
